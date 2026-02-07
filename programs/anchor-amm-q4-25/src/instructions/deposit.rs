@@ -69,9 +69,6 @@ impl<'info> Deposit<'info> {
         max_x: u64,  // Maximum amount of token X that the user is willing to deposit
         max_y: u64,  // Maximum amount of token Y that the user is willing to deposit
     ) -> Result<()> {
-        require!(self.config.locked == false, AmmError::PoolLocked);
-        require!(amount != 0, AmmError::InvalidAmount);
-
         let (x, y) = match self.mint_lp.supply == 0
             && self.vault_x.amount == 0
             && self.vault_y.amount == 0
@@ -112,35 +109,34 @@ impl<'info> Deposit<'info> {
             ),
         };
 
-        let cpi_program = self.token_program.to_account_info();
-
-        let cpi_accounts = Transfer {
-            from,
-            to,
-            authority: self.user.to_account_info(),
-        };
-
-        let ctx = CpiContext::new(cpi_program, cpi_accounts);
+        let ctx = CpiContext::new(
+            self.token_program.to_account_info(),
+            Transfer {
+                from,
+                to,
+                authority: self.user.to_account_info(),
+            },
+        );
 
         transfer(ctx, amount)
     }
 
     pub fn mint_lp_tokens(&self, amount: u64) -> Result<()> {
-        let cpi_program = self.token_program.to_account_info();
-
-        let cpi_accounts = MintTo {
-            mint: self.mint_lp.to_account_info(),
-            to: self.user_lp.to_account_info(),
-            authority: self.config.to_account_info(),
-        };
-
         let signer_seeds: &[&[&[u8]]] = &[&[
             b"config",
             &self.config.seed.to_le_bytes(),
             &[self.config.config_bump],
         ]];
 
-        let ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+        let ctx = CpiContext::new_with_signer(
+            self.token_program.to_account_info(),
+            MintTo {
+                mint: self.mint_lp.to_account_info(),
+                to: self.user_lp.to_account_info(),
+                authority: self.config.to_account_info(),
+            },
+            signer_seeds,
+        );
 
         mint_to(ctx, amount)
     }
